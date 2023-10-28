@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_project/envi.dart';
+import 'package:flutter_project/handler/location.dart';
 import 'package:flutter_project/handler/places_api.dart';
 import 'package:flutter_project/handler/places_client.dart';
 import 'package:flutter_project/model/place.dart';
@@ -15,26 +16,32 @@ class _HomeState extends State<Home> {
   final client = GoogleMapApiClient(baseUrl: "https://places.googleapis.com");
 
   Future<List<Place>> search() async {
-    final places = GoogleMapsPlacesApi(
-      client: client,
-      path: "/v1/places:searchText",
-      options: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': Envi.apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName',
-      },
-      queryParameters: {
-        "textQuery": "restaurant near me",
-        "maxResultCount": "10",
-        "locationBias": {
-          "circle": {
-            "center": {"latitude": "13.621849", "longitude": "123.177361"},
-            "radius": "1000"
-          }
+    try {
+      final geolocator = await LocationHandler().init();
+
+      final places = GoogleMapsPlacesApi(
+        client: client,
+        path: "/v1/places:searchText",
+        options: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': Envi.apiKey,
+          'X-Goog-FieldMask': 'places.id,places.displayName',
         },
-      },
-    );
-    return await places.searchByText();
+        queryParameters: {
+          "textQuery": "restaurant near me",
+          "maxResultCount": "10",
+          "locationBias": {
+            "circle": {
+              "center": {"latitude": geolocator.latitude, "longitude": geolocator.longitude},
+              "radius": "1000"
+            }
+          },
+        },
+      );
+      return await places.searchByText();
+    } catch (e) {
+      return List.empty();
+    }
   }
 
   @override
@@ -44,7 +51,9 @@ class _HomeState extends State<Home> {
         body: FutureBuilder<List<Place>>(
           future: search(),
           builder: (context, snapshot) {
-            if (snapshot.hasData) {
+            if (snapshot.hasData && snapshot.data != null) {
+              if (snapshot.data!.isEmpty) return const Text('Please allow to get your location.');
+
               return ListView.builder(
                 itemBuilder: (context, index) {
                   final place = snapshot.data?[index];
